@@ -19,7 +19,7 @@ import static net.minidev.json.parser.ParseException.ERROR_UNEXPECTED_EOF;
 import net.minidev.json.JSONValue;
 import net.minidev.json.writer.JsonReaderI;
 
-import java.nio.charset.Charset;
+
 import java.nio.charset.StandardCharsets;
 
 /**

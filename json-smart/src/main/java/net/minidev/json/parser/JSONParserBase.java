@@ -20,6 +20,7 @@ import static net.minidev.json.parser.ParseException.ERROR_UNEXPECTED_EOF;
 import static net.minidev.json.parser.ParseException.ERROR_UNEXPECTED_LEADING_0;
 import static net.minidev.json.parser.ParseException.ERROR_UNEXPECTED_TOKEN;
 import static net.minidev.json.parser.ParseException.ERROR_UNEXPECTED_UNICODE;
+import static net.minidev.json.parser.ParseException.ERROR_UNEXPECTED_JSON_DEPTH;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -39,6 +40,12 @@ import net.minidev.json.writer.JsonReaderI;
  */
 abstract class JSONParserBase {
 	protected char c;
+	/**
+	 * hard coded maximal depth for JSON parsing
+	 */
+	public final static int MAX_DEPTH = 400;
+	protected int depth = 0;
+
 	JsonReader base;
 	public final static byte EOI = 0x1A;
 	protected static final char MAX_STOP = 126; // '}' -> 125
@@ -94,7 +101,9 @@ abstract class JSONParserBase {
 		this.acceptLeadinZero = (permissiveMode & JSONParser.ACCEPT_LEADING_ZERO) > 0;
 		this.acceptUselessComma = (permissiveMode & JSONParser.ACCEPT_USELESS_COMMA) > 0;
 		this.useHiPrecisionFloat = (permissiveMode & JSONParser.USE_HI_PRECISION_FLOAT) > 0;
-		this.checkTaillingData = (permissiveMode & (JSONParser.ACCEPT_TAILLING_DATA | JSONParser.ACCEPT_TAILLING_SPACE)) != (JSONParser.ACCEPT_TAILLING_DATA | JSONParser.ACCEPT_TAILLING_SPACE);
+		this.checkTaillingData = (permissiveMode & (JSONParser.ACCEPT_TAILLING_DATA
+				| JSONParser.ACCEPT_TAILLING_SPACE)) != (JSONParser.ACCEPT_TAILLING_DATA
+						| JSONParser.ACCEPT_TAILLING_SPACE);
 		this.checkTaillingSpace = (permissiveMode & JSONParser.ACCEPT_TAILLING_SPACE) == 0;
 		this.reject127 = (permissiveMode & JSONParser.REJECT_127_CHAR) > 0;
 		this.unrestictBigDigit = (permissiveMode & JSONParser.BIG_DIGIT_UNRESTRICTED) > 0;
@@ -284,14 +293,17 @@ abstract class JSONParserBase {
 	abstract protected void read() throws IOException;
 
 	protected <T> T readArray(JsonReaderI<T> mapper) throws ParseException, IOException {
-		Object current = mapper.createArray();
 		if (c != '[')
 			throw new RuntimeException("Internal Error");
+		if (++this.depth > MAX_DEPTH) {
+			throw new ParseException(pos, ERROR_UNEXPECTED_JSON_DEPTH, c);
+		}
+		Object current = mapper.createArray();
 		read();
 		boolean needData = false;
 		// special case needData is false and can close is true
 		if (c == ',' && !acceptUselessComma)
-			throw new ParseException(pos, ERROR_UNEXPECTED_CHAR, (char) c);			
+			throw new ParseException(pos, ERROR_UNEXPECTED_CHAR, (char) c);
 		for (;;) {
 			switch (c) {
 			case ' ':
@@ -303,6 +315,7 @@ abstract class JSONParserBase {
 			case ']':
 				if (needData && !acceptUselessComma)
 					throw new ParseException(pos, ERROR_UNEXPECTED_CHAR, (char) c);
+				this.depth--;
 				read(); /* unstack */
 				//
 				return mapper.convert(current);
@@ -539,6 +552,9 @@ abstract class JSONParserBase {
 		//
 		if (c != '{')
 			throw new RuntimeException("Internal Error");
+		if (++this.depth > MAX_DEPTH) {
+			throw new ParseException(pos, ERROR_UNEXPECTED_JSON_DEPTH, c);
+		}
 		Object current = mapper.createObject();
 		boolean needData = false;
 		boolean acceptData = true;
@@ -558,6 +574,7 @@ abstract class JSONParserBase {
 			case '}':
 				if (needData && !acceptUselessComma)
 					throw new ParseException(pos, ERROR_UNEXPECTED_CHAR, (char) c);
+				this.depth--;
 				read(); /* unstack */
 				//
 				return mapper.convert(current);
@@ -602,6 +619,7 @@ abstract class JSONParserBase {
 				// should loop skipping read step
 				skipSpace();
 				if (c == '}') {
+					this.depth--;
 					read(); /* unstack */
 					//
 					return mapper.convert(current);
