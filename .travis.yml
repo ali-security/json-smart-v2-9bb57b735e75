@@ -1,6 +1,18 @@
 language: java
-jdk:
-  - oraclejdk11
-  - oraclejdk8
-  - oraclejdk7
-  
+dist: focal
+env:
+  - SEAL_JDK=11
+  - SEAL_JDK=8
+before_install:
+  - curl -fsSL -o /tmp/jdk.tar.gz "https://api.adoptium.net/v3/binary/latest/${SEAL_JDK}/ga/linux/x64/jdk/hotspot/normal/eclipse"
+  - mkdir -p /tmp/jdk && tar -xzf /tmp/jdk.tar.gz -C /tmp/jdk --strip-components=1
+  - export JAVA_HOME=/tmp/jdk && export PATH="$JAVA_HOME/bin:$PATH"
+  - curl -fsSL https://archive.apache.org/dist/maven/maven-3/3.9.9/binaries/apache-maven-3.9.9-bin.tar.gz | tar -xz -C /tmp
+  - export PATH="/tmp/apache-maven-3.9.9/bin:$PATH"
+  - java -version && mvn -version
+install: true
+script:
+  - mvn -B -V --no-transfer-progress -f json-smart/pom.xml clean package -Dgpg.skip=true -Dmaven.javadoc.skip=true -Dmaven.source.skip=true -Dsurefire.useFile=false
+after_script:
+  - sh .travis/test-report.sh
+  - sh .travis/wait-for-log.sh 1800
